@@ -178,56 +178,66 @@ print("Actual Digit:", y_test[0])
 print("Predicted Digit:", predicted_digit)
 ************************************************************************************************
 PRACTICAL4
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-print("TensorFlow Version:", tf.__version__)
+
+(x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+print("Training data:", x_train.shape)
+print("Testing data:", x_test.shape)
+
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
 
 
-np.random.seed(42)
+x_train_normal = x_train[y_train == 0]
 
-normal_data = np.random.normal(
-    loc=50,
-    scale=5,
-    size=(1000, 1)
-)
-print("Dataset Shape:", normal_data.shape)
-print("First 10 Values:")
-print(normal_data[:10])
+x_test_normal = x_test[y_test == 0]
+x_test_anomaly = x_test[y_test != 0]
+print("Normal training images:", x_train_normal.shape)
+print("Normal testing images:", x_test_normal.shape)
+print("Anomaly testing images:", x_test_anomaly.shape)
 
 
-normal_data = normal_data / 100.0
+plt.figure(figsize=(10, 3))
 
+for i in range(5):
+    plt.subplot(1, 5, i + 1)
+    plt.imshow(x_train_normal[i], cmap='gray')
+    plt.axis('off')
 
-x_train = normal_data[:800]
-x_test = normal_data[800:]
-print("Training Data:", x_train.shape)
-print("Testing Data:", x_test.shape)
-
-
-encoder = keras.Sequential([
-    layers.Dense(16, activation='relu', input_shape=(1,)),
-    layers.Dense(8, activation='relu'),
-    layers.Dense(4, activation='relu')
-])
+plt.show()
 
 
 
-decoder = keras.Sequential([
-    layers.Dense(8, activation='relu', input_shape=(4,)),
-    layers.Dense(16, activation='relu'),
-    layers.Dense(1, activation='sigmoid')
-])
+input_img = keras.Input(shape=(28, 28))
+
+x = layers.Flatten()(input_img)
+x = layers.Dense(64, activation='relu')(x)
+x = layers.Dense(32, activation='relu')(x)
+
+encoded = layers.Dense(16, activation='relu')(x)
+
+encoder = keras.Model(input_img, encoded)
 
 
-autoencoder = keras.Sequential([
-    encoder,
-    decoder
-])
-autoencoder.summary()
+latent_input = keras.Input(shape=(16,))
 
+x = layers.Dense(32, activation='relu')(latent_input)
+x = layers.Dense(64, activation='relu')(x)
+x = layers.Dense(784, activation='sigmoid')(x)
+
+decoded = layers.Reshape((28, 28))(x)
+decoder = keras.Model(latent_input, decoded)
+
+autoencoder_input = keras.Input(shape=(28, 28))
+
+encoded_image = encoder(autoencoder_input)
+decoded_image = decoder(encoded_image)
+
+autoencoder = keras.Model(autoencoder_input, decoded_image)
 
 
 autoencoder.compile(
@@ -236,82 +246,68 @@ autoencoder.compile(
     metrics=['mae']
 )
 
-
 history = autoencoder.fit(
-    x_train,
-    x_train,
-    epochs=30,
-    batch_size=32,
-    validation_split=0.1,
-    shuffle=True
+    x_train_normal,
+    x_train_normal,
+    epochs=10,
+    batch_size=128,
+    validation_split=0.1
 )
-
 
 
 plt.plot(history.history['loss'], label='Training Loss')
 plt.plot(history.history['val_loss'], label='Validation Loss')
 
-plt.title("Autoencoder Training Loss")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
+plt.title('Autoencoder Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
 
-anomalies = np.array([
-    [1.2],
-    [1.5],
-    [1.8],
-    [2.0]
-])
+train_predictions = autoencoder.predict(x_train_normal)
 
-
-test_data = np.concatenate([
-    x_test,
-    anomalies
-])
-
-
-reconstructed = autoencoder.predict(test_data)
-
-reconstruction_error = np.mean(
-    np.square(test_data - reconstructed),
-    axis=1
+train_error = np.mean(
+    np.square(x_train_normal - train_predictions),
+    axis=(1, 2)
 )
 
+threshold = np.percentile(train_error, 95)
 
-threshold = np.percentile(
-    np.mean(np.square(
-        x_train - autoencoder.predict(x_train)
-    ), axis=1),
-    95
-)
 print("Anomaly Threshold:", threshold)
 
 
-predictions = reconstruction_error > threshold
+test_images = np.concatenate([
+    x_test_normal[:100],
+    x_test_anomaly[:100]
+])
 
-for i in range(len(test_data)):
-    if predictions[i]:
-        print(test_data[i][0] * 100, "Anomaly")
-    else:
-        print(test_data[i][0] * 100, "Normal")
+test_predictions = autoencoder.predict(test_images)
 
-plt.figure(figsize=(10,5))
-
-plt.plot(reconstruction_error, label='Reconstruction Error')
-
-plt.axhline(
-    y=threshold,
-    color='red',
-    linestyle='--',
-    label='Anomaly Threshold'
+test_error = np.mean(
+    np.square(test_images - test_predictions),
+    axis=(1, 2)
 )
 
-plt.title("Anomaly Detection using Autoencoder")
-plt.xlabel("Data Points")
-plt.ylabel("Reconstruction Error")
-plt.legend()
+results = test_error > threshold
+
+print("Total Images:", len(test_images))
+print("Detected Anomalies:", np.sum(results))
+print("Detected Normal Images:", np.sum(~results))
+
+plt.figure(figsize=(10, 4))
+
+for i in range(5):
+    plt.subplot(2, 5, i + 1)
+    plt.imshow(test_images[i], cmap='gray')
+    plt.title("Original")
+    plt.axis('off')
+
+    plt.subplot(2, 5, i + 6)
+    plt.imshow(test_predictions[i], cmap='gray')
+    plt.title("Reconstructed")
+    plt.axis('off')
+
 plt.show()
 
 **********************************************************************************************************
