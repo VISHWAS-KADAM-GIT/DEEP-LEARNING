@@ -311,3 +311,92 @@ for i in range(5):
 plt.show()
 
 **********************************************************************************************************
+PRACTICAL 5 
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Dense, Lambda
+from tensorflow.keras.preprocessing.text import Tokenizer
+
+
+
+text = """Deep learning is a part of machine learning.
+Machine learning is a part of artificial intelligence.
+Deep learning uses neural networks.
+Neural networks are inspired by the human brain."""
+
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts([text])
+
+sequences = tokenizer.texts_to_sequences([text])[0]
+
+word_index = tokenizer.word_index
+vocab_size = len(word_index) + 1
+
+print("Word Index:", word_index)
+print("Vocabulary Size:", vocab_size)
+print("Sequences:", sequences)
+
+
+
+window_size = 2
+
+X = []
+y = []
+
+for i in range(window_size, len(sequences) - window_size):
+
+    context = sequences[i-2:i] + sequences[i+1:i+3]
+    target = sequences[i]
+
+    X.append(context)
+    y.append(target)
+
+X = np.array(X)
+y = np.array(y)
+
+print("Input Context:", X)
+print("Target Words:", y)
+
+
+
+model = Sequential([
+    Embedding(vocab_size, 50, input_length=4),
+    Lambda(lambda x: tf.reduce_mean(x, axis=1)),
+    Dense(vocab_size, activation='softmax')
+])
+
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+model.summary()
+
+model.fit(X, y, epochs=100, verbose=1)
+
+
+
+
+def predict_word(context_words):
+
+    context = [word_index[w] for w in context_words]
+
+    context = np.array([context])
+
+    prediction = model.predict(context, verbose=0)
+
+    predicted_index = np.argmax(prediction)
+
+    for word, index in word_index.items():
+        if index == predicted_index:
+            return word
+
+context_words = ["deep", "is", "part", "a"]
+
+print("Context Words:", context_words)
+print("Predicted Word:", predict_word(context_words))
+
+
+print("CBOW Model Implemented Successfully!")
