@@ -1,3 +1,82 @@
+**************************************************************************************************
+PRACTICAL2
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+from tensorflow import keras
+from tensorflow.keras import layers
+print("TensorFlow Version:", tf.__version__)
+
+(x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+
+print("Training images:", x_train.shape)
+print("Training labels:", y_train.shape)
+print("Testing images:", x_test.shape)
+print("Testing labels:", y_test.shape)
+
+x_train = x_train / 255.0
+x_test = x_test / 255.0
+
+plt.imshow(x_train[0], cmap='gray')
+plt.title("MNIST Handwritten Digit")
+plt.axis('off')
+plt.show()
+print("Actual Digit:", y_train[0])
+
+model = keras.Sequential([
+    layers.Flatten(input_shape=(28, 28)),
+    layers.Dense(128, activation='relu'),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(10, activation='softmax')
+])
+
+model.summary()
+
+model.compile(
+    optimizer=keras.optimizers.SGD(learning_rate=0.01),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(
+    x_train,
+    y_train,
+    epochs=5,
+    batch_size=32,
+    validation_split=0.1
+)
+
+test_loss, test_accuracy = model.evaluate(x_test, y_test)
+print("Test Loss:", test_loss * 100, "%")
+print("Test Accuracy:", test_accuracy * 100, "%")
+
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title("Training and Validation Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.legend()
+plt.show()
+
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title("Training and Validation Accuracy")
+plt.xlabel("Epochs")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
+
+prediction = model.predict(x_test[:1])
+predicted_digit = np.argmax(prediction)
+plt.imshow(x_test[0], cmap='gray')
+plt.title("Predicted Digit: " + str(predicted_digit))
+plt.axis('off')
+plt.show()
+print("Actual Digit:", y_test[0])
+print("Predicted Digit:", predicted_digit)
+
+
 ***********************************************************************************************************
 PRACTICAL 3 
 import tensorflow as tf
@@ -97,3 +176,142 @@ plt.show()
 
 print("Actual Digit:", y_test[0])
 print("Predicted Digit:", predicted_digit)
+************************************************************************************************
+PRACTICAL4
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow import keras
+from tensorflow.keras import layers
+print("TensorFlow Version:", tf.__version__)
+
+
+np.random.seed(42)
+
+normal_data = np.random.normal(
+    loc=50,
+    scale=5,
+    size=(1000, 1)
+)
+print("Dataset Shape:", normal_data.shape)
+print("First 10 Values:")
+print(normal_data[:10])
+
+
+normal_data = normal_data / 100.0
+
+
+x_train = normal_data[:800]
+x_test = normal_data[800:]
+print("Training Data:", x_train.shape)
+print("Testing Data:", x_test.shape)
+
+
+encoder = keras.Sequential([
+    layers.Dense(16, activation='relu', input_shape=(1,)),
+    layers.Dense(8, activation='relu'),
+    layers.Dense(4, activation='relu')
+])
+
+
+
+decoder = keras.Sequential([
+    layers.Dense(8, activation='relu', input_shape=(4,)),
+    layers.Dense(16, activation='relu'),
+    layers.Dense(1, activation='sigmoid')
+])
+
+
+autoencoder = keras.Sequential([
+    encoder,
+    decoder
+])
+autoencoder.summary()
+
+
+
+autoencoder.compile(
+    optimizer='adam',
+    loss='mse',
+    metrics=['mae']
+)
+
+
+history = autoencoder.fit(
+    x_train,
+    x_train,
+    epochs=30,
+    batch_size=32,
+    validation_split=0.1,
+    shuffle=True
+)
+
+
+
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+
+plt.title("Autoencoder Training Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.legend()
+plt.show()
+
+
+anomalies = np.array([
+    [1.2],
+    [1.5],
+    [1.8],
+    [2.0]
+])
+
+
+test_data = np.concatenate([
+    x_test,
+    anomalies
+])
+
+
+reconstructed = autoencoder.predict(test_data)
+
+reconstruction_error = np.mean(
+    np.square(test_data - reconstructed),
+    axis=1
+)
+
+
+threshold = np.percentile(
+    np.mean(np.square(
+        x_train - autoencoder.predict(x_train)
+    ), axis=1),
+    95
+)
+print("Anomaly Threshold:", threshold)
+
+
+predictions = reconstruction_error > threshold
+
+for i in range(len(test_data)):
+    if predictions[i]:
+        print(test_data[i][0] * 100, "Anomaly")
+    else:
+        print(test_data[i][0] * 100, "Normal")
+
+plt.figure(figsize=(10,5))
+
+plt.plot(reconstruction_error, label='Reconstruction Error')
+
+plt.axhline(
+    y=threshold,
+    color='red',
+    linestyle='--',
+    label='Anomaly Threshold'
+)
+
+plt.title("Anomaly Detection using Autoencoder")
+plt.xlabel("Data Points")
+plt.ylabel("Reconstruction Error")
+plt.legend()
+plt.show()
+
+**********************************************************************************************************
