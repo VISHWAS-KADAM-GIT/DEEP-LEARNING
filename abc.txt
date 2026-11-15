@@ -400,3 +400,158 @@ print("Predicted Word:", predict_word(context_words))
 
 
 print("CBOW Model Implemented Successfully!")
+****************************************************************************************************************
+PRACTICAL6
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras import layers, models
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+print("Training data:", x_train.shape)
+print("Testing data:", x_test.shape)
+
+
+# Resize images to 96x96
+IMG_SIZE = 96
+
+x_train = tf.image.resize(x_train, (IMG_SIZE, IMG_SIZE))
+x_test = tf.image.resize(x_test, (IMG_SIZE, IMG_SIZE))
+
+# Apply MobileNetV2 preprocessing
+x_train = preprocess_input(x_train)
+x_test = preprocess_input(x_test)
+
+print("Training shape:", x_train.shape)
+print("Testing shape:", x_test.shape)
+
+base_model = MobileNetV2(
+    weights='imagenet',
+    include_top=False,
+    input_shape=(96, 96, 3)
+)
+
+# Freeze pre-trained layers
+base_model.trainable = False
+
+print("Pre-trained MobileNetV2 loaded successfully")
+
+
+model = models.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.3),
+    layers.Dense(10, activation='softmax')
+])
+
+model.summary()
+
+
+# Use a smaller subset for faster practical execution
+train_ds = tf.data.Dataset.from_tensor_slices(
+    (x_train[:10000], y_train[:10000].flatten())
+)
+
+test_ds = tf.data.Dataset.from_tensor_slices(
+    (x_test[:2000], y_test[:2000].flatten())
+)
+
+def prepare_data(image, label):
+    image = tf.cast(image, tf.float32)
+    image = tf.image.resize(image, (96, 96))
+    image = preprocess_input(image)
+    return image, label
+
+train_ds = train_ds.map(
+    prepare_data,
+    num_parallel_calls=tf.data.AUTOTUNE
+).shuffle(1000).batch(32).prefetch(tf.data.AUTOTUNE)
+
+test_ds = test_ds.map(
+    prepare_data,
+    num_parallel_calls=tf.data.AUTOTUNE
+).batch(32).prefetch(tf.data.AUTOTUNE)
+
+
+
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(
+    train_ds,
+    epochs=5,
+    validation_data=test_ds
+)
+
+
+
+base_model.trainable = True
+
+# Freeze all except last 20 layers
+for layer in base_model.layers[:-20]:
+    layer.trainable = False
+
+# Keep Batch Normalization layers frozen
+for layer in base_model.layers:
+    if isinstance(layer, layers.BatchNormalization):
+        layer.trainable = False
+
+# Use a low learning rate
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history_fine = model.fit(
+    train_ds,
+    epochs=3,
+    validation_data=test_ds
+)
+
+
+
+
+loss, accuracy = model.evaluate(test_ds)
+
+print("Test Loss:", loss)
+print("Test Accuracy:", accuracy * 100, "%")
+
+
+class_names = [
+    'airplane', 'automobile', 'bird', 'cat', 'deer',
+    'dog', 'frog', 'horse', 'ship', 'truck'
+]
+
+# Select one test image
+sample = tf.cast(x_test[0], tf.float32)
+sample = tf.image.resize(sample, (96, 96))
+sample = preprocess_input(sample)
+sample = tf.expand_dims(sample, axis=0)
+
+prediction = model.predict(sample)
+
+predicted_class = np.argmax(prediction)
+
+print("Predicted Object:", class_names[predicted_class])
+print("Actual Object:", class_names[int(y_test[0][0])])
+
+
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+
+plt.title('Model Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
+
+print("Transfer Learning using MobileNetV2 completed successfully!")
+
