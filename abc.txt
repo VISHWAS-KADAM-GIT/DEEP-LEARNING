@@ -1,3 +1,5 @@
+***********************************************************************************************************
+PRACTICAL 3 
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,8 +39,7 @@ model = keras.Sequential([
     layers.Flatten(),
 
     layers.Dense(64, activation='relu'),
-
-    layers.Dense(10, activation='softmax')
+    layers.Dense(10, activation='softmax')]) 
 
 
 
