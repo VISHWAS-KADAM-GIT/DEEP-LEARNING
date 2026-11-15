@@ -1,0 +1,5 @@
+print("Training images:", x_train.shape)
+print("Training labels:", y_train.shape)
+
+print("Testing images:", x_test.shape)
+print("Testing labels:", y_test.shape)
